@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101a2a">
+<title>MONS: Ecos de Aurora</title>
+<style>
+:root{--ink:#17263a;--cream:#f6f0d8;--blue:#2c6787;--mint:#78d6b2;--gold:#f4c96b;--panel:#f8f2dc}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a2a;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);touch-action:none}
+#app{height:100dvh;display:flex;flex-direction:column;max-width:900px;margin:auto;background:#172a3a}
+header{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#101a2a;color:#f6f0d8;border-bottom:3px solid #385a70;font-size:12px;letter-spacing:1px}
+.logo{font-weight:900;color:#8ee6c3}.logo span{color:#f4c96b}
+#screen{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#8ec7bd;overflow:hidden}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;object-fit:contain}
+#hud{position:absolute;left:10px;top:10px;display:flex;gap:6px;pointer-events:none}
+.pill{background:#f8f2dc;border:2px solid #17263a;box-shadow:3px 3px 0 #17263a;padding:5px 7px;font-size:10px;font-weight:bold}
+#hint{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);background:#f8f2dc;border:2px solid #17263a;box-shadow:3px 3px 0 #17263a;padding:6px 10px;font-size:10px;white-space:nowrap;max-width:95%;overflow:hidden}
+#controls{flex:none;background:#172a3a;padding:10px;display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:10px;align-items:center}
+.pad{display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(2,36px);gap:4px;justify-content:center}
+.ctrl{border:2px solid #0e1b28;background:#dce7d9;color:#17263a;font:900 16px monospace;box-shadow:0 3px 0 #09131d;border-radius:5px;touch-action:none;user-select:none}
+.ctrl:active,.ctrl.down{transform:translateY(2px);box-shadow:0 1px 0 #09131d;background:#f4c96b}
+.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.actions button{height:38px;font-size:11px}
+#dialog{position:absolute;left:12px;right:12px;bottom:12px;background:#f8f2dc;border:3px solid #17263a;box-shadow:4px 4px 0 #17263a;padding:12px;display:none;z-index:5;min-height:82px;font-size:13px;line-height:1.45}
+#dialog.show{display:block}
+#dialog .small{font-size:10px;color:#426078;margin-top:6px}
+#battle{position:absolute;inset:0;background:#a8d5c0;display:none;z-index:4}
+#battle.show{display:block}
+.battle-top{position:absolute;top:9%;left:5%;width:54%;background:#f8f2dc;border:3px solid #17263a;box-shadow:4px 4px 0 #17263a;padding:8px;font-size:12px}
+.hp{height:7px;background:#d4c8aa;border:1px solid #17263a;margin-top:6px}.hp i{display:block;height:100%;background:#77c96c;transition:width .25s}
+.monster{position:absolute;width:38%;height:38%;image-rendering:pixelated}
+#enemySprite{right:7%;top:10%}#allySprite{left:7%;bottom:22%}
+.battle-bottom{position:absolute;left:4%;right:4%;bottom:3%;height:19%;background:#f8f2dc;border:3px solid #17263a;box-shadow:4px 4px 0 #17263a;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}
+#battleText{grid-column:1/-1;font-size:11px;align-self:center}
+.move{background:#e4eadb;border:2px solid #17263a;color:#17263a;font:bold 11px monospace;min-height:30px}
+.move:active{background:#f4c96b}
+#toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:8;background:#17263a;color:#f8f2dc;border:2px solid #f4c96b;padding:10px 14px;font-size:12px;display:none;text-align:center}
+@media(min-width:650px){#controls{grid-template-columns:1fr 1fr 1fr;padding:12px 22px}.pad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,38px)}.ctrl{font-size:18px}header{height:48px;font-size:13px}}
+</style>
+</head>
+<body>
+<div id="app">
+<header><div class="logo">MONS <span>✦</span> ECOS DE AURORA</div><div id="badge">ROTA 01 · VALE CLARO</div></header>
+<div id="screen">
+<canvas id="game" width="320" height="180" aria-label="Mundo pixel art"></canvas>
+<div id="hud"><div class="pill" id="teamPill">TIME 1/3</div><div class="pill" id="orbPill">ORBE × 4</div></div>
+<div id="hint">EXPLORE O VALE — PROCURE GRAMA ALTA</div>
+<div id="dialog"><div id="dialogText"></div><div class="small">TOQUE EM OK OU PRESSIONE ESPAÇO</div></div>
+<div id="battle">
+<canvas id="enemySprite" class="monster" width="96" height="96"></canvas>
+<canvas id="allySprite" class="monster" width="96" height="96"></canvas>
+<div class="battle-top"><b id="enemyName">LUMIPUP · Nv. 3</b><div class="hp"><i id="enemyHp" style="width:100%"></i></div><div id="enemyHpText" style="font-size:9px;margin-top:4px">HP 18/18</div></div>
+<div class="battle-top" style="top:auto;bottom:24%;left:auto;right:5%;width:49%"><b id="allyName">MOSSLET · Nv. 5</b><div class="hp"><i id="allyHp" style="width:100%"></i></div><div id="allyHpText" style="font-size:9px;margin-top:4px">HP 24/24</div></div>
+<div class="battle-bottom"><div id="battleText">Um Lumipup selvagem apareceu!</div><button class="move" data-move="0">FOLHA RÁPIDA</button><button class="move" data-move="1">PULSO SOLAR</button><button class="move" data-move="2">LANÇAR ORBE</button><button class="move" data-move="3">RECUAR</button></div>
+</div>
+<div id="toast"></div>
+</div>
+<div id="controls">
+<div class="pad">
+<button class="ctrl up" data-dir="up">▲</button><button class="ctrl left" data-dir="left">◀</button><button class="ctrl down" data-dir="down">▼</button><button class="ctrl right" data-dir="right">▶</button>
+</div>
+<div class="actions"><button class="ctrl" id="interact">A · INTERAGIR</button><button class="ctrl" id="menu">B · MOCHILA</button><button class="ctrl" id="sound">♫ SOM: ON</button><button class="ctrl" id="help">?</button></div>
+<div class="actions"><button class="ctrl" id="heal">DESCANSAR</button><button class="ctrl" id="journal">DIÁRIO</button><button class="ctrl" id="mapBtn">MAPA</button><button class="ctrl" id="save">SALVAR</button></div>
+</div>
+</div>
+<script>
+(() => {
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+ctx.imageSmoothingEnabled=false;
+const W=320,H=180,T=16;
+let worldSeed=147, frame=0, mode='world', moving=false, lastStep=0, soundOn=true, audio=null;
+let player={x:9,y:7,dir:'down',walk:0};
+let inventory={orbs:4,herbs:2};
+let team=[{name:'Mosslet',kind:'moss',level:5,hp:24,max:24,xp:0}];
+let wild=null, encounterCooldown=0, dialogueQueue=[], quest=0, steps=0, saved=false;
+const tiles={grass:'#8acb9b',dark:'#67b58d',water:'#6fb9cb',sand:'#d7c88f',path:'#d8c99b',tree:'#2f775e',leaf:'#4b9a70',rock:'#8b9c9c',flower:'#f1d46b'};
+function rand(){worldSeed=(worldSeed*1664525+1013904223)>>>0;return worldSeed/4294967296}
+function tone(freq=440,dur=.07,type='square',vol=.035){if(!soundOn)return;try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();let o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;g.gain.value=vol;g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+dur)}catch(e){}}
+function sfx(name){if(name==='step'){tone(120,.035,'square',.018)}if(name==='ok'){tone(520,.06);setTimeout(()=>tone(760,.06),45)}if(name==='hit'){tone(160,.12,'sawtooth',.05);setTimeout(()=>tone(90,.08,'square',.03),45)}if(name==='catch'){tone(400,.1);setTimeout(()=>tone(620,.12),100);setTimeout(()=>tone(820,.18),220)}if(name==='heal'){tone(600,.08,'sine');setTimeout(()=>tone(800,.14,'sine'),90)}if(name==='encounter'){tone(220,.12);setTimeout(()=>tone(330,.12),90);setTimeout(()=>tone(440,.18),180)}}
+function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function text(t,x,y,c='#17263a',size=8){ctx.fillStyle=c;ctx.font=`bold ${size}px monospace`;ctx.fillText(t,x,y)}
+function hash(x,y){let n=Math.sin(x*127.1+y*311.7+worldSeed)*43758.5453;return n-Math.floor(n)}
+function tileAt(x,y){if(x<0||y<0||x>=40||y>=30)return 'tree';if((x>16&&x<22&&y>3&&y<12)||(x>26&&y>18&&y<23))return 'water';if(y===14||x===14&&y>8&&y<22||x>14&&x<24&&y===9)return 'path';if((x===5&&y===5)||(x===6&&y===5)||(x===29&&y===7)||(x===30&&y===7)||(x===4&&y===19)||(x===5&&y===19))return 'tree';if(hash(x,y)>.82)return 'grassTall';return 'grass'}
+function drawTile(type,x,y,tx,ty){
+if(type==='grass'||type==='grassTall'){rect(x,y,T,T,tiles.grass);rect(x+2,y+3,2,2,'#a6ddb0');if(hash(tx,ty)>.45)rect(x+10,y+10,2,2,tiles.dark);if(type==='grassTall'){for(let i=0;i<4;i++){rect(x+2+i*3,y+7+(i%2)*2,2,7,tiles.dark);rect(x+3+i*3,y+5+(i%2)*2,1,4,'#3c936d')}}}
+else if(type==='path'){rect(x,y,T,T,tiles.path);if(hash(tx,ty)>.5)rect(x+4,y+5,2,1,'#b9ab7d');if(hash(tx,ty)>.7)rect(x+10,y+12,2,1,'#b9ab7d')}
+else if(type==='water'){rect(x,y,T,T,tiles.water);rect(x+3,y+5,6,1,'#a5e2df');if((frame+tx*3+ty)%27<2)rect(x+8,y+11,4,1,'#d1f0df')}
+else if(type==='tree'){rect(x,y,T,T,'#6eae8b');rect(x+2,y+1,12,12,tiles.tree);rect(x+4,y+3,8,8,tiles.leaf);rect(x+7,y+11,3,5,'#795e49')}
+}
+function drawCharacter(x,y,kind,dir,walk=0,scale=1){
+let bob=Math.sin(walk/2)*1;let px=Math.round(x),py=Math.round(y+bob);
+if(kind==='player'){
+rect(px+3,py+11,4,4,'#233b50');rect(px+9,py+11,4,4,'#233b50');
+rect(px+2,py+5,12,8,'#e6a76f');rect(px+1,py+3,14,6,'#2e5b7a');rect(px+3,py,10,5,'#f0d07c');rect(px+5,py+2,2,2,'#17263a');rect(px+10,py+2,2,2,'#17263a');rect(px+5,py+7,6,2,'#f4d4a1');
+if(dir==='left')rect(px+3,py+3,2,2,'#17263a');if(dir==='right')rect(px+10,py+3,2,2,'#17263a');
+}else if(kind==='npc'){
+rect(px+3,py+10,4,5,'#584c76');rect(px+9,py+10,4,5,'#584c76');rect(px+2,py+4,12,8,'#dca879');rect(px+1,py+2,14,5,'#bd6f5d');rect(px+4,py,8,3,'#4b3949');rect(px+5,py+5,2,2,'#17263a');rect(px+10,py+5,2,2,'#17263a');
+}}
+function drawMonster(c,kind,x,y,scale=1,anim=0){
+c.clearRect(0,0,c.canvas.width,c.canvas.height);c.imageSmoothingEnabled=false;
+const r=(a,b,w,h,col)=>{c.fillStyle=col;c.fillRect(a,b,w,h)};
+if(kind==='moss'){
+r(25,48,45,25,'#286b60');r(18,35,58,29,'#55b98b');r(30,25,34,23,'#75d3a2');r(27,23,10,14,'#367f68');r(56,22,9,14,'#367f68');r(34,42,6,7,'#17364a');r(57,42,6,7,'#17364a');r(36,44,2,3,'#fff2c7');r(59,44,2,3,'#fff2c7');r(39,58,15,4,'#225a55');r(12,58,11,8,'#55b98b');r(72,58,11,8,'#55b98b');r(36,17,5,8,'#e6d66f');r(52,15,5,10,'#e6d66f');
+}else if(kind==='lumi'){
+r(27,47,44,25,'#4c6d9d');r(20,35,57,31,'#759ed2');r(33,24,29,21,'#a6c9ed');r(26,25,9,18,'#f4d36e');r(60,24,10,18,'#f4d36e');r(34,43,7,8,'#17263a');r(57,43,7,8,'#17263a');r(36,45,2,3,'#fff7da');r(59,45,2,3,'#fff7da');r(41,58,14,3,'#395b8a');r(12,50,10,8,'#759ed2');r(75,50,10,8,'#759ed2');r(43,16,7,10,'#fff0a4');r(54,15,7,10,'#fff0a4');
+}else{
+r(27,46,44,27,'#b87562');r(20,34,57,32,'#e5a16d');r(30,24,35,22,'#e7c18a');r(25,24,10,16,'#7e5c54');r(61,24,10,16,'#7e5c54');r(34,43,7,8,'#17263a');r(57,43,7,8,'#17263a');r(36,45,2,3,'#fff7da');r(59,45,2,3,'#fff7da');r(42,58,12,3,'#7e514d');r(12,53,10,7,'#e5a16d');r(75,53,10,7,'#e5a16d');
+}
+if(anim%2===0){r(40,73,10,4,'#17263a');r(56,73,10,4,'#17263a')}
+}
+function render(){
+frame++;ctx.clearRect(0,0,W,H);
+const camX=Math.max(0,Math.min(40*T-W,player.x*T-W/2)),camY=Math.max(0,Math.min(30*T-H,player.y*T-H/2));
+for(let sy=0;sy<H;sy+=T)for(let sx=0;sx<W;sx+=T){let tx=Math.floor((sx+camX)/T),ty=Math.floor((sy+camY)/T);drawTile(tileAt(tx,ty),sx-(camX%T),sy-(camY%T),tx,ty)}
+// little pond details / bridge
+if(player.x>13&&player.x<25&&player.y>7&&player.y<16){rect(140-camX%T,151-camY%T,48,8,'#bda974')}
+const npcs=[{x:11,y:9},{x:24,y:15}];
+npcs.forEach((n,i)=>{let sx=n.x*T-camX,sy=n.y*T-camY;if(sx>-20&&sx<W&&sy>-20&&sy<H)drawCharacter(sx,sy,'npc','down',frame/6)});
+drawCharacter(player.x*T-camX,player.y*T-camY,'player',player.dir,player.walk);
+if(player.x===11&&player.y===8)text('!',11*T-camX+6,8*T-camY-2,'#f4c96b',12);
+requestAnimationFrame(render);
+}
+function say(msg,callback){document.getElementById('dialogText').textContent=msg;let d=document.getElementById('dialog');d.classList.add('show');dialogueQueue.push(callback||null);mode='dialog'}
+function closeDialog(){let d=document.getElementById('dialog');if(!d.classList.contains('show'))return;d.classList.remove('show');let cb=dialogueQueue.shift();mode='world';if(cb)cb()}
+function updateHud(){document.getElementById('teamPill').textContent='TIME '+team.length+'/3';document.getElementById('orbPill').textContent='ORBE × '+inventory.orbs}
+function showToast(t){let el=document.getElementById('toast');el.textContent=t;el.style.display='block';setTimeout(()=>el.style.display='none',1300)}
+function startBattle(){
+if(mode!=='world')return;mode='battle';sfx('encounter');wild={name:Math.random()<.55?'Lumipup':'Cindercub',kind:Math.random()<.55?'lumi':'ember',level:2+Math.floor(Math.random()*3),hp:16+Math.floor(Math.random()*8),max:0};wild.max=wild.hp;
+document.getElementById('battle').classList.add('show');document.getElementById('battleText').textContent='Um '+wild.name+' selvagem apareceu!';document.getElementById('enemyName').textContent=wild.name.toUpperCase()+' · Nv. '+wild.level;
+drawMonster(document.getElementById('enemySprite'),wild.kind,0,0,1,frame);drawMonster(document.getElementById('allySprite'),team[0].kind,0,0,1,frame);refreshBattle();
+}
+function refreshBattle(){let a=team[0];document.getElementById('enemyHp').style.width=Math.max(0,wild.hp/wild.max*100)+'%';document.getElementById('enemyHpText').textContent='HP '+Math.max(0,wild.hp)+'/'+wild.max;document.getElementById('allyHp').style.width=Math.max(0,a.hp/a.max*100)+'%';document.getElementById('allyHpText').textContent='HP '+a.hp+'/'+a.max;document.getElementById('allyName').textContent=a.name.toUpperCase()+' · Nv. '+a.level}
+function endBattle(msg){document.getElementById('battleText').textContent=msg;setTimeout(()=>{document.getElementById('battle').classList.remove('show');mode='world';encounterCooldown=5;updateHud()},950)}
+function battleMove(i){
+  if(mode!=='battle'||!wild)return;
+  const a=team[0];
+  if(i===3){sfx('ok');endBattle('Você recuou com segurança.');return}
+  if(i===2){
+    if(inventory.orbs<=0){document.getElementById('battleText').textContent='Sem orbes!';tone(130,.1);return}
+    inventory.orbs--;updateHud();
+    const chance=.38+(1-wild.hp/wild.max)*.45;
+    if(Math.random()<chance){
+      sfx('catch');
+      if(team.length<3){
+        team.push({name:wild.name,kind:wild.kind,level:wild.level,hp:wild.max,max:wild.max,xp:0});
+        endBattle(wild.name+' entrou para sua equipe!');
+      }else{inventory.orbs++;endBattle('Equipe cheia! O '+wild.name+' fugiu.')}
+      return;
+    }else{
+      document.getElementById('battleText').textContent='O orbe tremeu... mas não segurou!';
+      sfx('hit');
+    }
+  }else{
+    let dmg=i===0?5+Math.floor(Math.random()*5):8+Math.floor(Math.random()*7);
+    if(i===1&&Math.random()<.25)dmg+=4;
+    wild.hp-=dmg;sfx('hit');
+    document.getElementById('battleText').textContent=a.name+' usou '+(i===0?'FOLHA RÁPIDA':'PULSO SOLAR')+'! -'+dmg+' HP';
+    refreshBattle();
+    if(wild.hp<=0){
+      a.xp+=12;
+      let result=wild.name+' foi derrotado! +12 XP';
+      if(a.xp>=20){a.xp-=20;a.level++;a.max+=4;a.hp=a.max;result=a.name+' subiu para Nv. '+a.level+'!'}
+      refreshBattle();endBattle(result);return;
+    }
+  }
+  setTimeout(()=>{
+    if(mode!=='battle')return;
+    let dmg=3+Math.floor(Math.random()*4);
+    a.hp=Math.max(1,a.hp-dmg);
+    document.getElementById('battleText').textContent=wild.name+' contra-atacou! -'+dmg+' HP';
+    refreshBattle();
+  },420);
+}
+document.querySelectorAll('.move').forEach(b=>b.addEventListener('click',()=>battleMove(Number(b.dataset.move))));
+function move(dx,dy,dir){if(mode!=='world')return;if(Date.now()-lastStep<105)return;lastStep=Date.now();player.dir=dir;player.walk++;let nx=player.x+dx,ny=player.y+dy;if(tileAt(nx,ny)==='water'||tileAt(nx,ny)==='tree') {tone(100,.03);return}player.x=nx;player.y=ny;steps++;sfx('step');if(encounterCooldown>0)encounterCooldown--;if(tileAt(nx,ny)==='grassTall'&&Math.random()<.17&&encounterCooldown===0)startBattle();if(steps%12===0&&Math.random()<.3)inventory.herbs++;if(player.x===11&&player.y===8){document.getElementById('hint').textContent='PESQUISADORA LIA ESTÁ PERTO — PRESSIONE A'}else document.getElementById('hint').textContent=tileAt(nx,ny)==='grassTall'?'A GRAMA SE MOVE...':'EXPLORE O VALE — PROCURE GRAMA ALTA'}
+const dirs={up:[0,-1,'up'],down:[0,1,'down'],left:[-1,0,'left'],right:[1,0,'right']};
+let held=null,holdTimer=null;
+function startDir(d){if(mode!=='world')return;let a=dirs[d];move(...a);held=d;clearInterval(holdTimer);holdTimer=setInterval(()=>{if(held)move(...dirs[held])},135)}
+function stopDir(){held=null;clearInterval(holdTimer)}
+document.querySelectorAll('[data-dir]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();b.classList.add('down');startDir(b.dataset.dir)});['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>{b.classList.remove('down');stopDir()}))});
+window.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key==='ArrowUp'||e.key==='w')move(0,-1,'up');if(e.key==='ArrowDown'||e.key==='s')move(0,1,'down');if(e.key==='ArrowLeft'||e.key==='a')move(-1,0,'left');if(e.key==='ArrowRight'||e.key==='d')move(1,0,'right');if(e.key===' '||e.key==='Enter')interact();if(e.key==='Escape')closeDialog()});
+function interact(){if(mode==='dialog'){closeDialog();return}if(mode!=='world')return;sfx('ok');if(Math.abs(player.x-11)+Math.abs(player.y-9)<=2){say('LIA: As criaturas chamadas Mons guardam ecos de energia. Algumas só aparecem quando o vento muda. Leve este presente!');inventory.orbs+=2;updateHud();quest=1;return}if(player.x===9&&player.y===7){say('Um pequeno marco de pedra diz: “O vale floresce onde a luz encontra a sombra.”');return}say('Você observa os arredores. Há trilhas, grama alta e algo brilhando ao longe. Continue explorando.')}
+document.getElementById('interact').addEventListener('click',interact);
+document.getElementById('menu').addEventListener('click',()=>say('MOCHILA\\nOrbes de vínculo: '+inventory.orbs+'\\nErvas: '+inventory.herbs+'\\nMons na equipe: '+team.map(m=>m.name+' Nv.'+m.level).join(', ')));
+document.getElementById('heal').addEventListener('click',()=>{team.forEach(m=>m.hp=m.max);sfx('heal');say('Você descansou perto do marco. Toda a equipe recuperou energia.')});
+document.getElementById('journal').addEventListener('click',()=>say('DIÁRIO DE CAMPO\\nPassos dados: '+steps+'\\nMons encontrados: '+(team.length+(quest?1:0))+'\\nPista: procure a pesquisadora perto da trilha dourada.'));
+document.getElementById('mapBtn').addEventListener('click',()=>say('MAPA DO VALE\\nVocê está na Rota 01: Vale Claro.\\nNorte: bosque antigo. Leste: lago das nuvens. Sul: vila de Brisamar.\\nAs outras regiões ainda estão por descobrir.'));
+document.getElementById('save').addEventListener('click',()=>{try{localStorage.setItem('auroraSave',JSON.stringify({player,inventory,team,steps,quest}));saved=true;showToast('JOGO SALVO!');sfx('ok')}catch(e){say('Este navegador não permitiu salvar. Use o mesmo navegador para continuar a aventura.')}});
+document.getElementById('sound').addEventListener('click',e=>{soundOn=!soundOn;e.currentTarget.textContent='♫ SOM: '+(soundOn?'ON':'OFF');if(soundOn)sfx('ok')});
+document.getElementById('help').addEventListener('click',()=>say('COMO JOGAR\\nUse as setas para andar. Entre na grama alta para encontrar Mons. Na batalha, escolha um movimento ou lance um orbe para tentar criar vínculo. Fale com pessoas usando A. O progresso pode ser salvo.'));
+try{let s=JSON.parse(localStorage.getItem('auroraSave'));if(s){player=s.player||player;inventory=s.inventory||inventory;team=s.team||team;steps=s.steps||0;quest=s.quest||0}}catch(e){}
+updateHud();render();
+})();
+</script>
+</body>
+</html>
